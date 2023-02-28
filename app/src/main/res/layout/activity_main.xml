@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:backgroundTint="#FFFFFF"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <EditText
+        android:id="@+id/input"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="top"
+        android:inputType="textMultiLine"
+        android:maxLines="5" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Speed Control:" />
+
+        <RadioGroup
+            android:id="@+id/speed_chooser"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <RadioButton
+                android:id="@+id/fast"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Fast"
+                android:textColor="@color/colorPrimary"
+                android:textColorHighlight="@color/colorPrimary" />
+
+            <RadioButton
+                android:id="@+id/normal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Normal"
+                android:textColor="@color/colorPrimary"
+                android:textColorHighlight="@color/colorPrimary" />
+
+            <RadioButton
+                android:id="@+id/slow"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Slow"
+                android:textColor="@color/colorPrimary"
+                android:textColorHighlight="@color/colorPrimary" />
+
+        </RadioGroup>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:text="Speak"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+        android:textColor="@color/colorPrimary"
+        android:textColorHighlight="@color/colorPrimary" />
+
+</LinearLayout>

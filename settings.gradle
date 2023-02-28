@@ -1,0 +1,4 @@
+include ':app'
+rootProject.name='ArmTTS'
+include ':ArmTTS'
+include ':mylibrary'
