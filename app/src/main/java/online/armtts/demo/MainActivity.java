@@ -9,7 +9,6 @@ import android.widget.RadioGroup;
 import androidx.appcompat.app.AppCompatActivity;
 
 import online.armtts.ArmTTS;
-import online.armtts.demo.R;
 
 public class MainActivity extends AppCompatActivity {
     private static final String DEFAULT_INPUT_TEXT = "Ողջույն, իմ անունը Գոռ է։";
