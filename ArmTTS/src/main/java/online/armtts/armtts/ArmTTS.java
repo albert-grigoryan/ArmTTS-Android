@@ -11,20 +11,23 @@ import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.tensorflow.lite.DataType;
-import org.tensorflow.lite.Interpreter;
-import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 
+import ai.onnxruntime.OnnxTensor;
+import ai.onnxruntime.OnnxValue;
+import ai.onnxruntime.OrtEnvironment;
+import ai.onnxruntime.OrtException;
+import ai.onnxruntime.OrtSession;
 import okhttp3.MediaType;
 import okhttp3.MultipartBody;
 import okhttp3.OkHttpClient;
@@ -34,7 +37,7 @@ import okhttp3.Response;
 
 class ProcessResult {
     private int rc;
-    private int[] sequence;
+    private long[] sequence;
     private String message;
 
     public ProcessResult() {
@@ -48,11 +51,11 @@ class ProcessResult {
         this.rc = rc;
     }
 
-    public int[] getSequence() {
+    public long[] getSequence() {
         return sequence;
     }
 
-    public void setSequence(int[] sequence) {
+    public void setSequence(long[] sequence) {
         this.sequence = sequence;
     }
 
@@ -67,34 +70,37 @@ class ProcessResult {
 
 public class ArmTTS {
     private static final String TAG = "ArmTTS";
-    private final static String MODEL1 = "model1.tflite";
-    private final static String MODEL2 = "model2.tflite";
-    private final static int MAX_LENGTH = 160;
+    private final static String MODEL = "arm-gor.onnx";
+    private final static int MAX_LENGTH = 140;
 
     private final AudioTrack mAudioTrack;
     private final static int FORMAT = AudioFormat.ENCODING_PCM_FLOAT;
-    private final static int SAMPLE_RATE = 22000;
+    private final static int SAMPLE_RATE = 44100;
     private final static int CHANNEL = AudioFormat.CHANNEL_OUT_MONO;
     private final static int BUFFER_SIZE = AudioTrack.getMinBufferSize(SAMPLE_RATE, CHANNEL, FORMAT);
 
     private String x_RapidAPI_Key;
-    private Interpreter module1;
-    private Interpreter module2;
+    private OrtEnvironment ortEnv = null;
+    private OrtSession ortSession = null;
+
+    private static byte[] readFileToBytes(String filePath) throws IOException {
+        File file = new File(filePath);
+        byte[] bytes = new byte[(int) file.length()];
+        try(FileInputStream fis = new FileInputStream(file)){
+            fis.read(bytes);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return bytes;
+    }
 
     public ArmTTS(Context context, String x_RapidAPI_Key) {
         this.x_RapidAPI_Key = x_RapidAPI_Key;
-
-        // Interpreter options.
-        Interpreter.Options options = new Interpreter.Options();
-        options.setNumThreads(5);
-
-        String model1 = copyFile(context, MODEL1);
-        String model2 = copyFile(context, MODEL2);
-
-        // Load models.
+        String model_file = copyFile(context, MODEL);
         try {
-            module1 = new Interpreter(new File(model1), options);
-            module2 = new Interpreter(new File(model2), options);
+            ortEnv = OrtEnvironment.getEnvironment();
+            byte[] model = readFileToBytes(model_file);
+            ortSession = ortEnv.createSession(model);
             Log.i(TAG, "Initialized.");
         } catch (Exception e) {
             e.printStackTrace();
@@ -135,7 +141,7 @@ public class ArmTTS {
                 .addFormDataPart("text", text)
                 .build();
         Request request = new Request.Builder()
-                .url("https://armtts1.p.rapidapi.com/preprocess")
+                .url("https://armtts1.p.rapidapi.com/v2/preprocess")
                 .method("POST", body)
                 .addHeader("X-RapidAPI-Key", x_RapidAPI_Key)
                 .build();
@@ -146,7 +152,7 @@ public class ArmTTS {
             if (json.has("ids")) {
                 result.setRc(0);
                 JSONArray jids = json.getJSONArray("ids");
-                int[] ids = new int[jids.length()];
+                long[] ids = new long[jids.length()];
                 for (int i = 0; i < ids.length; ++i) {
                     ids[i] = jids.optInt(i);
                 }
@@ -165,37 +171,56 @@ public class ArmTTS {
         return result;
     }
 
-    private float[] synthesize(int[] inputIds, float speed) {
-        module1.resizeInput(0, new int[]{1, inputIds.length});
-        module1.allocateTensors();
-        @SuppressLint("UseSparseArrays")
-        Map<Integer, Object> outputMap = new HashMap<>();
-        FloatBuffer outputBuffer1 = FloatBuffer.allocate(350000);
-        outputMap.put(0, outputBuffer1);
-        int[][] inputs = new int[1][inputIds.length];
-        inputs[0] = inputIds;
-        module1.runForMultipleInputsOutputs(
-                new Object[]{inputs, new int[1][1], new float[]{speed}, new float[]{1F},
-                        new float[]{1F}}, outputMap);
-        int size = module1.getOutputTensor(0).shape()[2];
-        int[] shape = {1, outputBuffer1.position() / size, size};
-        TensorBuffer spectrogram = TensorBuffer.createFixedSize(shape, DataType.FLOAT32);
-        float[] outputArray = new float[outputBuffer1.position()];
-        outputBuffer1.rewind();
-        outputBuffer1.get(outputArray);
-        spectrogram.loadArray(outputArray);
-        module2.resizeInput(0, spectrogram.getShape());
-        module2.allocateTensors();
-        FloatBuffer outputBuffer2 = FloatBuffer.allocate(350000);
-        module2.run(spectrogram.getBuffer(), outputBuffer2);
-        float[] audioArray = new float[outputBuffer2.position()];
-        outputBuffer2.rewind();
-        outputBuffer2.get(audioArray);
-        return audioArray;
+    public float[] synthesize(long[][] inputIds, float speed) {
+        HashMap<String, OnnxTensor> inputs = new HashMap<>();
+        OrtSession.Result result = null;
+        try {
+            long[] inputLengthsArray = new long[]{inputIds.length};
+            for (int i = 0; i < inputIds.length; ++i) {
+                inputLengthsArray[i] = inputIds[i].length;
+            }
+            float[] scalesArray = new float[]{0.333f, speed, 0.0f};
+            OnnxTensor inputTensor = OnnxTensor.createTensor(ortEnv, inputIds);
+            OnnxTensor inputLengthsTensor = OnnxTensor.createTensor(ortEnv, inputLengthsArray);
+            OnnxTensor scalesArrayTensor = OnnxTensor.createTensor(ortEnv, scalesArray);
+            inputs.put("input", inputTensor);
+            inputs.put("input_lengths", inputLengthsTensor);
+            inputs.put("scales", scalesArrayTensor);
+            result = ortSession.run(inputs);
+            System.out.print(result);
+        } catch (OrtException e) {
+            e.printStackTrace();
+        }
+
+        if (result != null) {
+            Optional<OnnxValue> resultValue = result.get("output");
+            try {
+                @SuppressLint({"NewApi", "LocalSuppress"}) float[][][][] resultArray = (float[][][][])resultValue.get().getValue();
+                List<Float> resultList = new ArrayList(resultArray[0][0].length);
+                for (int i = 0; i < resultArray.length; i++) {
+                    for (int j = 0; j < resultArray[i].length; j++) {
+                        for (int k = 0; k < resultArray[i][j].length; k++) {
+                            for (int q = 0; q < resultArray[i][j][k].length; q++) {
+                                resultList.add(resultArray[i][j][k][q]);
+                            }
+                        }
+                    }
+                }
+                float[] mels = new float[resultList.size()];
+                for (int i = 0; i < resultList.size(); ++i) {
+                    mels[i] = resultList.get(i);
+                }
+                return mels;
+            } catch (OrtException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return null;
     }
 
     private Boolean isInitialized() {
-        return module1 != null && module2 != null;
+        return ortSession != null;
     }
 
     private List<String> tokenize(String text) {
@@ -239,9 +264,9 @@ public class ArmTTS {
                     ProcessResult processResult = process(sentence);
                     if (processResult.getRc() == 0) {
                         float reversedSpeed = 2 - speed;
-                        int[] sequence = processResult.getSequence();
+                        long[] sequence = processResult.getSequence();
                         if (sequence != null && sequence.length != 0) {
-                            float[] audio = synthesize(sequence, reversedSpeed);
+                            float[] audio = synthesize(new long[][]{sequence}, reversedSpeed);
                             audios.add(audio);
                         }
                     } else {

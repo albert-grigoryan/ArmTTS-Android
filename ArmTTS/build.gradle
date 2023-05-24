@@ -27,15 +27,13 @@ android {
 
 dependencies {
     implementation 'com.squareup.okhttp3:okhttp:3.14.6'
-    implementation 'org.tensorflow:tensorflow-lite:0.0.0-nightly'
-    implementation 'org.tensorflow:tensorflow-lite-select-tf-ops:0.0.0-nightly'
-    implementation 'org.tensorflow:tensorflow-lite-support:0.0.0-nightly'
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.13.1'
 }
 
 ext {
     // Provide your own coordinates here
     PUBLISH_GROUP_ID = 'online.armtts'
-    PUBLISH_VERSION = '1.0.0'
+    PUBLISH_VERSION = '2.0.0'
     PUBLISH_ARTIFACT_ID = 'armtts'
 }
 
