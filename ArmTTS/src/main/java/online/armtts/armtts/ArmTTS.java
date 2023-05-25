@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import ai.onnxruntime.OnnxTensor;
 import ai.onnxruntime.OnnxValue;
@@ -179,7 +180,7 @@ public class ArmTTS {
             for (int i = 0; i < inputIds.length; ++i) {
                 inputLengthsArray[i] = inputIds[i].length;
             }
-            float[] scalesArray = new float[]{0.333f, speed, 0.0f};
+            float[] scalesArray = new float[]{0.0f, speed, 0.0f};
             OnnxTensor inputTensor = OnnxTensor.createTensor(ortEnv, inputIds);
             OnnxTensor inputLengthsTensor = OnnxTensor.createTensor(ortEnv, inputLengthsArray);
             OnnxTensor scalesArrayTensor = OnnxTensor.createTensor(ortEnv, scalesArray);
@@ -224,27 +225,27 @@ public class ArmTTS {
     }
 
     private List<String> tokenize(String text) {
-        String[] tmp_tokens = text.split("[:։]");
         List<String> tokens = new ArrayList<>();
-        for (String token : tmp_tokens) {
-            if (token.length() > MAX_LENGTH) {
-                String tmp_string = "";
-                String[] words = text.split(" ");
-                for (String word : words) {
-                    if (tmp_string.length() + word.length() < MAX_LENGTH/2) {
-                        tmp_string += " " + word;
-                    } else {
-                        if (!tmp_string.isEmpty()) {
-                            tokens.add(tmp_string.trim());
-                        }
-                        tmp_string = word;
-                    }
-                }
-                if (!tmp_string.isEmpty()) {
-                    tokens.add(tmp_string.trim());
-                }
+        Pattern s_full_stops = Pattern.compile("[;։․.]");
+        Pattern s_commas = Pattern.compile("[՝`]");
+        text = s_full_stops.matcher(text).replaceAll(":");
+        text = s_commas.matcher(text).replaceAll(",");
+        while (text.length() > 0) {
+            if (text.length() <= MAX_LENGTH) {
+                tokens.add(text.trim());
+                break;
+            } else if (text.substring(0, MAX_LENGTH).contains(":")) {
+                int idx = text.substring(0, MAX_LENGTH).lastIndexOf(":");
+                tokens.add(text.substring(0, idx + 1).trim());
+                text = text.substring(idx + 1);
+            } else if (text.substring(0, MAX_LENGTH).contains(",")) {
+                int idx = text.substring(0, MAX_LENGTH).lastIndexOf(",");
+                tokens.add(text.substring(0, idx + 1).trim());
+                text = text.substring(idx + 1);
             } else {
-                tokens.add(token.trim());
+                int idx = text.substring(0, MAX_LENGTH).lastIndexOf(" ");
+                tokens.add(text.substring(0, idx + 1).trim() + ",");
+                text = text.substring(idx + 1);
             }
         }
         return tokens;
