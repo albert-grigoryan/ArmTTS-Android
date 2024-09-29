@@ -142,7 +142,7 @@ public class ArmTTS {
                 .addFormDataPart("text", text)
                 .build();
         Request request = new Request.Builder()
-                .url("https://armtts1.p.rapidapi.com/v2/preprocess")
+                .url("https://armtts1.p.rapidapi.com/v3/preprocess")
                 .method("POST", body)
                 .addHeader("X-RapidAPI-Key", x_RapidAPI_Key)
                 .build();
@@ -180,7 +180,7 @@ public class ArmTTS {
             for (int i = 0; i < inputIds.length; ++i) {
                 inputLengthsArray[i] = inputIds[i].length;
             }
-            float[] scalesArray = new float[]{0.0f, speed, 0.0f};
+            float[] scalesArray = new float[]{0.333f, speed, 0.333f};
             OnnxTensor inputTensor = OnnxTensor.createTensor(ortEnv, inputIds);
             OnnxTensor inputLengthsTensor = OnnxTensor.createTensor(ortEnv, inputLengthsArray);
             OnnxTensor scalesArrayTensor = OnnxTensor.createTensor(ortEnv, scalesArray);
