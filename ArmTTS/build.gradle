@@ -33,7 +33,7 @@ dependencies {
 ext {
     // Provide your own coordinates here
     PUBLISH_GROUP_ID = 'online.armtts'
-    PUBLISH_VERSION = '2.0.0'
+    PUBLISH_VERSION = '3.0.0'
     PUBLISH_ARTIFACT_ID = 'armtts'
 }
 
